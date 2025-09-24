@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+:root {
+  --brand-blue: #003366;
+  --brand-blue-700: #062b53;
+  --accent: #0077cc;
+  --text: #1d2939;
+  --muted: #475467;
+  --bg: #f7f9fc;
+
+  /* Box palette (approx from screenshot) */
+  --box-blue-1: #e6f0ff;
+  --box-blue-2: #d7f3f0;
+  --box-blue-3: #d9f1ff;
+  --box-blue-4: #dff4ff;
+
+  --box-blue-5: #e3e8ff;
+  --box-blue-6: #cfe8ff;
+  --box-blue-7: #cfefff;
+  --box-blue-8: #cfeaf7;
+
+  --btn-green: #16a34a;
+  --btn-green-hover: #12833c;
+}

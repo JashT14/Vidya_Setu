@@ -1,0 +1,593 @@
+
+// // ==================== DOCUMENT MANAGEMENT ROUTES ====================
+// // Add these imports at the top of your auth.js file:
+// // import mongoose from "mongoose";
+// // import multer from "multer";
+// // import { GridFsStorage } from "multer-gridfs-storage";
+// // import Document from "./models/Document.js";
+
+// // Simple fix - use connection string instead of connection object
+// const storage = new GridFsStorage({
+//   url: process.env.MONGODB_URI, // Make sure this is set in your .env file
+//   file: (req, file) => {
+//     return {
+//       filename: `${Date.now()}-${file.originalname}`,
+//       bucketName: "documents"
+//     };
+//   }
+// });
+
+// const upload = multer({ storage });
+
+// // GridFS bucket for downloads
+// let gfsBucket;
+// mongoose.connection.once("open", () => {
+//   gfsBucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+//     bucketName: "documents",
+//   });
+// });
+
+// // ------------------ Upload document (student) ------------------
+// router.post(
+//   "/documents",
+//   verifyStudentToken,
+//   upload.single("file"),
+//   async (req, res) => {
+//     try {
+//       const { category, institution, description, dateCompleted, education, credentialLink } = req.body;
+
+//       if (!req.file) return res.status(400).json({ success: false, message: "File required" });
+
+//       const document = new Document({
+//         studentId: req.student.id,
+//         fileId: req.file.id, // GridFS ObjectId
+//         fileName: req.file.filename,
+//         fileType: req.file.contentType,
+//         fileSize: req.file.size,
+//         category,
+//         institution,
+//         description,
+//         dateCompleted,
+//         education,
+//         credentialLink,
+//       });
+
+//       await document.save();
+//       res.json({ success: true, document });
+//     } catch (error) {
+//       console.error("Document upload error:", error);
+//       res.status(500).json({ success: false, message: "Internal server error" });
+//     }
+//   }
+// );
+
+// // ------------------ Download file by GridFS ID ------------------
+// router.get("/documents/:fileId/download", verifyStudentToken, async (req, res) => {
+//   try {
+//     const { fileId } = req.params;
+//     if (!mongoose.Types.ObjectId.isValid(fileId)) return res.status(400).json({ success: false, message: "Invalid fileId" });
+
+//     const doc = await Document.findOne({ fileId });
+//     if (!doc) return res.status(404).json({ success: false, message: "Document not found" });
+
+//     // GridFS query
+//     const fileCursor = gfsBucket.find({ _id: new mongoose.Types.ObjectId(fileId) });
+//     const file = await fileCursor.next();
+//     if (!file) return res.status(404).json({ success: false, message: "File not found in GridFS" });
+
+//     const range = req.headers.range;
+//     const fileSize = file.length;
+
+//     if (range) {
+//       // 206 Partial Content
+//       const parts = range.replace(/bytes=/, "").split("-");
+//       const start = parseInt(parts[0], 10);
+//       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+//       const chunkSize = end - start + 1;
+
+//       res.writeHead(206, {
+//         "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+//         "Accept-Ranges": "bytes",
+//         "Content-Length": chunkSize,
+//         "Content-Type": file.contentType,
+//         "Content-Disposition": `attachment; filename="${file.filename}"`,
+//       });
+
+//       gfsBucket.openDownloadStream(file._id, { start, end: end + 1 }).pipe(res);
+//     } else {
+//       // full download
+//       res.set("Content-Type", file.contentType);
+//       res.set("Content-Disposition", `attachment; filename="${file.filename}"`);
+//       gfsBucket.openDownloadStream(file._id).pipe(res);
+//     }
+//   } catch (error) {
+//     console.error("File download error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // ------------------ Fetch student's own documents (metadata) ------------------
+// router.get("/documents/my", verifyStudentToken, async (req, res) => {
+//   try {
+//     const documents = await Document.find({ studentId: req.student.id });
+//     res.json({ success: true, documents });
+//   } catch (error) {
+//     console.error("Get my documents error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // Faculty/Admin view all documents
+// router.get("/documents", verifyFacultyOrAdminToken, async (req, res) => {
+//   try {
+//     const documents = await Document.find({}).populate("studentId", "studentName studentId email collegeName deptName");
+//     res.json({ success: true, documents });
+//   } catch (error) {
+//     console.error("Get documents error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // Faculty/Admin search documents
+// router.get("/documents/search", verifyFacultyOrAdminToken, async (req, res) => {
+//   try {
+//     const { query } = req.query;
+//     if (!query) return res.status(400).json({ success: false, message: "Search query required" });
+
+//     const documents = await Document.find({
+//       $or: [
+//         { description: { $regex: query, $options: "i" } },
+//         { category: { $regex: query, $options: "i" } },
+//         { institution: { $regex: query, $options: "i" } },
+//       ],
+//     }).populate("studentId", "studentName studentId email collegeName deptName");
+
+//     res.json({ success: true, results: documents });
+//   } catch (error) {
+//     console.error("Search documents error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // Faculty verify/reject document
+// router.patch("/documents/:id/review", verifyFacultyToken, async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { action, rejectionReason } = req.body;
+
+//     const document = await Document.findById(id);
+//     if (!document) return res.status(404).json({ success: false, message: "Document not found" });
+
+//     if (action === "verify") {
+//       document.status = "verified";
+//       document.reviewedBy = req.faculty.id;
+//       document.reviewDate = new Date();
+//       document.rejectionReason = null;
+//     } else if (action === "reject") {
+//       document.status = "rejected";
+//       document.reviewedBy = req.faculty.id;
+//       document.reviewDate = new Date();
+//       document.rejectionReason = rejectionReason || "Not specified";
+//     } else return res.status(400).json({ success: false, message: "Invalid action" });
+
+//     await document.save();
+//     res.json({ success: true, document });
+//   } catch (error) {
+//     console.error("Document review error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // Admin-only delete document
+// router.delete("/documents/:id", verifyAdminToken, async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const document = await Document.findById(id);
+//     if (!document) return res.status(404).json({ success: false, message: "Document not found" });
+
+//     // delete GridFS file
+//     await gfsBucket.delete(document.fileId);
+
+//     await Document.findByIdAndDelete(id);
+//     res.json({ success: true, message: "Document deleted successfully" });
+//   } catch (error) {
+//     console.error("Delete document error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+
+
+
+
+
+//DOCUMENT ROUTES BELOW
+
+
+// ---------------------- Document Management Routes ----------------------
+
+// // Upload document (student only)
+// router.post('/documents', verifyStudentToken, async (req, res) => {
+//   try {
+//     const { fileId, fileName, fileType, fileSize, category, institution, description, dateCompleted, education, credentialLink } = req.body;
+
+//     const document = new Document({
+//       studentId: req.student.id,
+//       fileId,
+//       fileName,
+//       fileType,
+//       fileSize,
+//       category,
+//       institution,
+//       description,
+//       dateCompleted,
+//       education,
+//       credentialLink,
+//     });
+
+//     await document.save();
+//     res.json({ success: true, document });
+//   } catch (error) {
+//     console.error('Document upload error:', error);
+//     res.status(500).json({ success: false, message: 'Internal server error' });
+//   }
+// });
+
+// // ------------------ Upload document (student) ------------------
+// router.post(
+//   "/documents",
+//   verifyStudentToken,
+//   upload.single("file"), // expects field name 'file' in multipart/form-data
+//   async (req, res) => {
+//     try {
+//       const {
+//         category,
+//         institution,
+//         description,
+//         dateCompleted,
+//         education,
+//         credentialLink,
+//       } = req.body;
+
+//       if (!req.file) {
+//         return res.status(400).json({ success: false, message: "File required" });
+//       }
+
+//       const document = new Document({
+//         studentId: req.student.id,
+//         fileId: req.file.id, // GridFS ObjectId
+//         fileName: req.file.filename,
+//         fileType: req.file.contentType,
+//         fileSize: req.file.size,
+//         category,
+//         institution,
+//         description,
+//         dateCompleted,
+//         education,
+//         credentialLink,
+//       });
+
+//       await document.save();
+//       res.json({ success: true, document });
+//     } catch (error) {
+//       console.error("Document upload error:", error);
+//       res.status(500).json({ success: false, message: "Internal server error" });
+//     }
+//   }
+// );
+
+// // ------------------ Download file by GridFS ID ------------------
+// router.get("/documents/:fileId/download", verifyStudentToken, async (req, res) => {
+//   try {
+//     const { fileId } = req.params;
+
+//     if (!mongoose.Types.ObjectId.isValid(fileId)) {
+//       return res.status(400).json({ success: false, message: "Invalid fileId" });
+//     }
+
+//     const file = await gfs.files.findOne({ _id: mongoose.Types.ObjectId(fileId) });
+//     if (!file) return res.status(404).json({ success: false, message: "File not found" });
+
+//     const readStream = gfs.createReadStream(file.filename);
+//     res.set("Content-Type", file.contentType);
+//     res.set("Content-Disposition", `attachment; filename="${file.filename}"`);
+//     readStream.pipe(res);
+//   } catch (error) {
+//     console.error("File download error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // ------------------ Fetch student’s own documents (metadata) ------------------
+// router.get("/documents/my", verifyStudentToken, async (req, res) => {
+//   try {
+//     const documents = await Document.find({ studentId: req.student.id });
+//     res.json({ success: true, documents });
+//   } catch (error) {
+//     console.error("Get my documents error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+
+// // Faculty/Admin view all documents
+// router.get('/documents', verifyFacultyOrAdminToken, async (req, res) => {
+//   try {
+//     const documents = await Document.find({})
+//       .populate('studentId', 'studentName studentId email collegeName deptName');
+//     res.json({ success: true, documents });
+//   } catch (error) {
+//     console.error('Get documents error:', error);
+//     res.status(500).json({ success: false, message: 'Internal server error' });
+//   }
+// });
+
+// // Faculty/Admin search documents
+// router.get('/documents/search', verifyFacultyOrAdminToken, async (req, res) => {
+//   try {
+//     const { query } = req.query;
+//     if (!query) {
+//       return res.status(400).json({ success: false, message: 'Search query required' });
+//     }
+
+//     const documents = await Document.find({
+//       $or: [
+//         { description: { $regex: query, $options: 'i' } },
+//         { category: { $regex: query, $options: 'i' } },
+//         { institution: { $regex: query, $options: 'i' } },
+//       ],
+//     }).populate('studentId', 'studentName studentId email collegeName deptName');
+
+//     res.json({ success: true, results: documents });
+//   } catch (error) {
+//     console.error('Search documents error:', error);
+//     res.status(500).json({ success: false, message: 'Internal server error' });
+//   }
+// });
+
+// // Faculty verify/reject document
+// router.patch('/documents/:id/review', verifyFacultyToken, async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { action, rejectionReason } = req.body;
+
+//     const document = await Document.findById(id);
+//     if (!document) {
+//       return res.status(404).json({ success: false, message: 'Document not found' });
+//     }
+
+//     if (action === 'verify') {
+//       document.status = 'verified';
+//       document.reviewedBy = req.faculty.id;
+//       document.reviewDate = new Date();
+//       document.rejectionReason = null;
+//     } else if (action === 'reject') {
+//       document.status = 'rejected';
+//       document.reviewedBy = req.faculty.id;
+//       document.reviewDate = new Date();
+//       document.rejectionReason = rejectionReason || 'Not specified';
+//     } else {
+//       return res.status(400).json({ success: false, message: 'Invalid action' });
+//     }
+
+//     await document.save();
+//     res.json({ success: true, document });
+//   } catch (error) {
+//     console.error('Document review error:', error);
+//     res.status(500).json({ success: false, message: 'Internal server error' });
+//   }
+// });
+
+// // Admin-only delete document
+// router.delete('/documents/:id', verifyAdminToken, async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const deleted = await Document.findByIdAndDelete(id);
+//     if (!deleted) {
+//       return res.status(404).json({ success: false, message: 'Document not found' });
+//     }
+//     res.json({ success: true, message: 'Document deleted successfully' });
+//   } catch (error) {
+//     console.error('Delete document error:', error);
+//     res.status(500).json({ success: false, message: 'Internal server error' });
+//   }
+// // });
+
+// import express from "express";
+// import mongoose from "mongoose";
+// import multer from "multer";
+// import { GridFsStorage } from "multer-gridfs-storage";
+// import Document from "./models/Document.js";
+
+
+// // -------------------- GridFS Setup --------------------
+// let gfsBucket;
+
+// mongoose.connection.once("open", () => {
+//   gfsBucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+//     bucketName: "documents",
+//   });
+// });
+
+// // Multer storage for GridFS
+// const storage = new GridFsStorage({
+//   db: mongoose.connection,
+//   file: (req, file) => ({
+//     filename: file.originalname,
+//     bucketName: "documents", // bucket name
+//   }),
+// });
+// const upload = multer({ storage });
+
+// // ------------------ Upload document (student) ------------------
+// router.post(
+//   "/documents",
+//   verifyStudentToken,
+//   upload.single("file"),
+//   async (req, res) => {
+//     try {
+//       const { category, institution, description, dateCompleted, education, credentialLink } = req.body;
+
+//       if (!req.file) return res.status(400).json({ success: false, message: "File required" });
+
+//       const document = new Document({
+//         studentId: req.student.id,
+//         fileId: req.file.id, // GridFS ObjectId
+//         fileName: req.file.filename,
+//         fileType: req.file.contentType,
+//         fileSize: req.file.size,
+//         category,
+//         institution,
+//         description,
+//         dateCompleted,
+//         education,
+//         credentialLink,
+//       });
+
+//       await document.save();
+//       res.json({ success: true, document });
+//     } catch (error) {
+//       console.error("Document upload error:", error);
+//       res.status(500).json({ success: false, message: "Internal server error" });
+//     }
+//   }
+// );
+
+// // ------------------ Download file by GridFS ID ------------------
+// router.get("/documents/:fileId/download", verifyStudentToken, async (req, res) => {
+//   try {
+//     const { fileId } = req.params;
+//     if (!mongoose.Types.ObjectId.isValid(fileId)) return res.status(400).json({ success: false, message: "Invalid fileId" });
+
+//     const doc = await Document.findOne({ fileId });
+//     if (!doc) return res.status(404).json({ success: false, message: "Document not found" });
+
+//     // GridFS query
+//     const fileCursor = gfsBucket.find({ _id: mongoose.Types.ObjectId(fileId) });
+//     const file = await fileCursor.next();
+//     if (!file) return res.status(404).json({ success: false, message: "File not found in GridFS" });
+
+//     const range = req.headers.range;
+//     const fileSize = file.length;
+
+//     if (range) {
+//       // 206 Partial Content
+//       const parts = range.replace(/bytes=/, "").split("-");
+//       const start = parseInt(parts[0], 10);
+//       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+//       const chunkSize = end - start + 1;
+
+//       res.writeHead(206, {
+//         "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+//         "Accept-Ranges": "bytes",
+//         "Content-Length": chunkSize,
+//         "Content-Type": file.contentType,
+//         "Content-Disposition": `attachment; filename="${file.filename}"`,
+//       });
+
+//       gfsBucket.openDownloadStream(file._id, { start, end: end + 1 }).pipe(res);
+//     } else {
+//       // full download
+//       res.set("Content-Type", file.contentType);
+//       res.set("Content-Disposition", `attachment; filename="${file.filename}"`);
+//       gfsBucket.openDownloadStream(file._id).pipe(res);
+//     }
+//   } catch (error) {
+//     console.error("File download error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // ------------------ Fetch student’s own documents (metadata) ------------------
+// router.get("/documents/my", verifyStudentToken, async (req, res) => {
+//   try {
+//     const documents = await Document.find({ studentId: req.student.id });
+//     res.json({ success: true, documents });
+//   } catch (error) {
+//     console.error("Get my documents error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // Faculty/Admin view all documents
+// router.get("/documents", verifyFacultyOrAdminToken, async (req, res) => {
+//   try {
+//     const documents = await Document.find({}).populate("studentId", "studentName studentId email collegeName deptName");
+//     res.json({ success: true, documents });
+//   } catch (error) {
+//     console.error("Get documents error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // Faculty/Admin search documents
+// router.get("/documents/search", verifyFacultyOrAdminToken, async (req, res) => {
+//   try {
+//     const { query } = req.query;
+//     if (!query) return res.status(400).json({ success: false, message: "Search query required" });
+
+//     const documents = await Document.find({
+//       $or: [
+//         { description: { $regex: query, $options: "i" } },
+//         { category: { $regex: query, $options: "i" } },
+//         { institution: { $regex: query, $options: "i" } },
+//       ],
+//     }).populate("studentId", "studentName studentId email collegeName deptName");
+
+//     res.json({ success: true, results: documents });
+//   } catch (error) {
+//     console.error("Search documents error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // Faculty verify/reject document
+// router.patch("/documents/:id/review", verifyFacultyToken, async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const { action, rejectionReason } = req.body;
+
+//     const document = await Document.findById(id);
+//     if (!document) return res.status(404).json({ success: false, message: "Document not found" });
+
+//     if (action === "verify") {
+//       document.status = "verified";
+//       document.reviewedBy = req.faculty.id;
+//       document.reviewDate = new Date();
+//       document.rejectionReason = null;
+//     } else if (action === "reject") {
+//       document.status = "rejected";
+//       document.reviewedBy = req.faculty.id;
+//       document.reviewDate = new Date();
+//       document.rejectionReason = rejectionReason || "Not specified";
+//     } else return res.status(400).json({ success: false, message: "Invalid action" });
+
+//     await document.save();
+//     res.json({ success: true, document });
+//   } catch (error) {
+//     console.error("Document review error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+// // Admin-only delete document
+// router.delete("/documents/:id", verifyAdminToken, async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const document = await Document.findById(id);
+//     if (!document) return res.status(404).json({ success: false, message: "Document not found" });
+
+//     // delete GridFS file
+//     await gfsBucket.delete(document.fileId);
+
+//     await document.remove();
+//     res.json({ success: true, message: "Document deleted successfully" });
+//   } catch (error) {
+//     console.error("Delete document error:", error);
+//     res.status(500).json({ success: false, message: "Internal server error" });
+//   }
+// });
+
+
+
+

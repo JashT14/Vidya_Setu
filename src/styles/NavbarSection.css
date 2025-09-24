@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+.navbar-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 2rem;
+  background: #f7f8fa;
+  border-bottom: 1px solid #e3eefd;
+}
+
+.navbar-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.navbar-logos {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+  min-width: 260px;
+}
+
+.navbar-logo-img {
+  height: 38px;
+  object-fit: contain;
+  cursor: pointer;
+}
+
+.navbar-search {
+  position: relative;
+  width: 650px;
+  margin-left: 2.5rem;
+}
+
+.navbar-search-input {
+  width: 100%;
+  padding: 0.7rem 2.5rem;
+  border-radius: 8px;
+  border: 1px solid #e3eefd;
+  font-size: 1rem;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  letter-spacing: 0.01em;
+}
+
+.navbar-search-icon {
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #3b6fc2;
+  font-size: 1.2rem;
+}
+
+.navbar-portfolio-icon {
+  position: absolute;
+  right: 2.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #3b6fc2;
+  font-size: 1.2rem;
+}
+
+.navbar-info-icon {
+  position: absolute;
+  right: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #3b6fc2;
+  font-size: 1.2rem;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.navbar-language-icon {
+  color: #3b6fc2;
+  font-size: 1.2rem;
+}
+
+.navbar-language-label {
+  color: #222;
+  font-weight: 500;
+  font-size: 1rem;
+  margin-right: 0.5rem;
+}
+
+.navbar-language-select {
+  background: transparent;
+  color: #222;
+  font-weight: 500;
+  font-size: 1rem;
+  border: none;
+  outline: none;
+  cursor: pointer;
+}
+
+.navbar-icon-btn {
+  position: relative;
+  display: inline-block;
+}
+
+.navbar-notification-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: red;
+  border-radius: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff;
+}
+
+.navbar-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #2d1e7b;
+  background: #ecd6fd;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+.navbar-avatar-dot {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2ecc40;
+  border: 2px solid #fff;
+}
+
+.navbar-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: -2.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #222;
+  color: #fff;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+
+.navbar-icon-btn:hover .navbar-tooltip,
+.navbar-icon-btn:focus .navbar-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.navbar-avatar-btn {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 38px;
+}
+
+.navbar-avatar-btn:hover .navbar-tooltip,
+.navbar-avatar-btn:focus .navbar-tooltip {
+  visibility: visible;
+  opacity: 1;
+  top: 110%;
+}

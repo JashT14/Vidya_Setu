@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+.footer-section {
+  text-align: center;
+  padding: 1rem 0;
+  font-size: 0.95rem;
+  color: #fff;
+  background: #1a2e4f;
+  margin-top: 2rem;
+}
+
+.footer-links {
+  margin-left: 2rem;
+}
